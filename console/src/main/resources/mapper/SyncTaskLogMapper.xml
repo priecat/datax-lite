@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="net.itzq.datax.mapper.SyncTaskLogMapper">
+
+    <insert id="insert">
+        INSERT INTO sync_task_log(id, task_id, task_name, trigger_type, schedule_id, state, start_time)
+        VALUES(#{id}, #{taskId}, #{taskName}, #{triggerType}, #{scheduleId}, #{state}, #{startTime})
+    </insert>
+
+    <update id="updateFinish">
+        UPDATE sync_task_log
+        SET state = #{state}, end_time = #{endTime}, duration_ms = #{durationMs},
+            read_records = #{readRecords}, write_records = #{writeRecords}, error_records = #{errorRecords},
+            read_bytes = #{readBytes}, speed_record = #{speedRecord}, speed_byte = #{speedByte},
+            message = #{message}, log_file = #{logFile}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateLogFile">
+        UPDATE sync_task_log SET log_file = #{logFile} WHERE id = #{id}
+    </update>
+
+    <!-- 任务真正开始执行：提交进池时写的是 QUEUED，此处才转 RUNNING -->
+    <update id="markRunning">
+        UPDATE sync_task_log SET state = 'RUNNING' WHERE id = #{id}
+    </update>
+
+    <!-- 应用重启时清理残留：RUNNING 与 QUEUED（提交后尚未开始跑）都视为被中断 -->
+    <update id="markAllRunningFailed">
+        UPDATE sync_task_log SET state = 'FAILED', message = #{message}
+        WHERE state IN ('RUNNING', 'QUEUED')
+    </update>
+
+    <select id="findById" resultType="SyncTaskLog">
+        SELECT * FROM sync_task_log WHERE id = #{id}
+    </select>
+
+    <select id="listByTask" resultType="SyncTaskLog">
+        SELECT * FROM sync_task_log WHERE task_id = #{taskId} ORDER BY start_time DESC LIMIT #{limit}
+    </select>
+
+    <select id="listBySchedule" resultType="SyncTaskLog">
+        SELECT * FROM sync_task_log WHERE schedule_id = #{scheduleId} ORDER BY start_time DESC LIMIT #{limit}
+    </select>
+
+    <select id="listPage" resultType="SyncTaskLog">
+        SELECT * FROM sync_task_log
+        <where>
+            <if test="state != null and state != ''">AND state = #{state}</if>
+            <if test="keyword != null and keyword != ''">AND task_name LIKE '%' || #{keyword} || '%'</if>
+        </where>
+        ORDER BY start_time DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(1) FROM sync_task_log
+        <where>
+            <if test="state != null and state != ''">AND state = #{state}</if>
+            <if test="keyword != null and keyword != ''">AND task_name LIKE '%' || #{keyword} || '%'</if>
+        </where>
+    </select>
+</mapper>

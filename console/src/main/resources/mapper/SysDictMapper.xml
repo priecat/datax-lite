@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="net.itzq.datax.mapper.SysDictMapper">
+
+    <!-- ── 字典类型 ── -->
+    <select id="findDictTypes" resultType="DictType">
+        SELECT * FROM sys_dict_type WHERE del_flag = '0' ORDER BY code
+    </select>
+
+    <select id="findDictTypeByCode" resultType="DictType">
+        SELECT * FROM sys_dict_type WHERE code = #{code} AND del_flag = '0'
+    </select>
+
+    <insert id="insertDictType">
+        INSERT INTO sys_dict_type(id, code, name, remark, is_system, create_date, del_flag)
+        VALUES(#{id}, #{code}, #{name}, #{remark}, 0, #{createDate}, '0')
+    </insert>
+
+    <update id="updateDictType">
+        UPDATE sys_dict_type SET name = #{name}, remark = #{remark}, update_date = #{updateDate}
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteDictType">
+        UPDATE sys_dict_type SET del_flag = '1', update_date = #{now} WHERE id = #{id} AND is_system = 0
+    </update>
+
+    <!-- ── 字典值 ── -->
+    <select id="findDictValues" resultType="DictValue">
+        SELECT * FROM sys_dict_value WHERE dict_code = #{dictCode} AND del_flag = '0'
+        ORDER BY sort, label
+    </select>
+
+    <select id="findDictValueById" resultType="DictValue">
+        SELECT * FROM sys_dict_value WHERE id = #{id} AND del_flag = '0'
+    </select>
+
+    <insert id="insertDictValue">
+        INSERT INTO sys_dict_value(id, dict_code, label, value, sort, remark, is_system, create_date, del_flag)
+        VALUES(#{id}, #{dictCode}, #{label}, #{value}, #{sort}, #{remark}, 0, #{createDate}, '0')
+    </insert>
+
+    <update id="updateDictValue">
+        UPDATE sys_dict_value SET label = #{label}, value = #{value}, sort = #{sort},
+               remark = #{remark}, update_date = #{updateDate}
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteDictValue">
+        UPDATE sys_dict_value SET del_flag = '1', update_date = #{now} WHERE id = #{id}
+    </update>
+
+    <!-- ── 类型映射 ── -->
+    <select id="findTypeMaps" resultType="TypeMap">
+        SELECT * FROM sys_type_map WHERE del_flag = '0'
+        <if test="group != null and group != ''">AND group_name = #{group}</if>
+        ORDER BY source_type
+    </select>
+
+    <select id="findTypeMapGroups" resultType="String">
+        SELECT DISTINCT group_name FROM sys_type_map WHERE del_flag = '0' ORDER BY group_name
+    </select>
+
+    <select id="findTypeMapById" resultType="TypeMap">
+        SELECT * FROM sys_type_map WHERE id = #{id} AND del_flag = '0'
+    </select>
+
+    <select id="findTypeMap" resultType="TypeMap">
+        SELECT * FROM sys_type_map
+        WHERE group_name = #{group} AND source_type = #{sourceType} AND del_flag = '0'
+    </select>
+
+    <insert id="insertTypeMap">
+        INSERT INTO sys_type_map(id, group_name, source_type, target_value, target_label, remark, is_system, create_date, del_flag)
+        VALUES(#{id}, #{groupName}, #{sourceType}, #{targetValue}, #{targetLabel}, #{remark}, 0, #{createDate}, '0')
+    </insert>
+
+    <update id="updateTypeMap">
+        UPDATE sys_type_map SET target_value = #{targetValue}, target_label = #{targetLabel},
+               remark = #{remark}, update_date = #{updateDate}
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteTypeMap">
+        UPDATE sys_type_map SET del_flag = '1', update_date = #{now} WHERE id = #{id}
+    </update>
+</mapper>

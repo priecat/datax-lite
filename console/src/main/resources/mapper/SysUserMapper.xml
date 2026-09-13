@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="net.itzq.datax.mapper.SysUserMapper">
+
+    <insert id="insert">
+        INSERT INTO sys_user(id, account, name, password, email, status, create_by, create_date, update_by, update_date, del_flag)
+        VALUES(#{id}, #{account}, #{name}, #{password}, #{email}, #{status}, #{createBy}, #{createDate}, #{updateBy}, #{updateDate}, '0')
+    </insert>
+
+    <update id="update">
+        UPDATE sys_user
+        SET name = #{name}, email = #{email}, status = #{status},
+            update_by = #{updateBy}, update_date = #{updateDate}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updatePassword">
+        UPDATE sys_user
+        SET password = #{password}, update_by = #{updateBy}, update_date = #{updateDate}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findAll" resultType="SysUser">
+        SELECT * FROM sys_user WHERE del_flag = '0' ORDER BY create_date ASC
+    </select>
+
+    <select id="findById" resultType="SysUser">
+        SELECT * FROM sys_user WHERE id = #{id} AND del_flag = '0'
+    </select>
+
+    <select id="findByAccount" resultType="SysUser">
+        SELECT * FROM sys_user WHERE account = #{account} AND del_flag = '0'
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM sys_user
+    </select>
+
+    <delete id="delete">
+        DELETE FROM sys_user WHERE id = #{id}
+    </delete>
+</mapper>

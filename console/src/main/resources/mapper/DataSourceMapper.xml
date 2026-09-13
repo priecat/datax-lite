@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="net.itzq.datax.mapper.DataSourceMapper">
+
+    <insert id="insert">
+        INSERT INTO sys_datasource(id, name, type, host, port, username, password, extra_params,
+                                   default_db, props, driver_class,
+                                   create_by, create_date, update_by, update_date, del_flag)
+        VALUES(#{id}, #{name}, #{type}, #{host}, #{port}, #{username}, #{password}, #{extraParams},
+               #{defaultDb}, #{props}, #{driverClass},
+               #{createBy}, #{createDate}, #{updateBy}, #{updateDate}, '0')
+    </insert>
+
+    <update id="update">
+        UPDATE sys_datasource
+        SET name = #{name}, type = #{type}, host = #{host}, port = #{port},
+            username = #{username}, password = #{password},
+            extra_params = #{extraParams}, default_db = #{defaultDb}, props = #{props},
+            driver_class = #{driverClass},
+            update_by = #{updateBy}, update_date = #{updateDate}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findAll" resultType="DataSource">
+        SELECT * FROM sys_datasource WHERE del_flag = '0' ORDER BY create_date DESC
+    </select>
+
+    <select id="findById" resultType="DataSource">
+        SELECT * FROM sys_datasource WHERE id = #{id} AND del_flag = '0'
+    </select>
+
+    <update id="delete">
+        UPDATE sys_datasource SET del_flag = '1', update_date = #{now} WHERE id = #{id}
+    </update>
+</mapper>

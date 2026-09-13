@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="net.itzq.datax.mapper.SyncTaskMapper">
+
+    <insert id="insert">
+        INSERT INTO sync_task(id, name, source_datasource_id, source_database, target_datasource_id, target_database,
+                              config, notify_config, description, create_by, create_date, update_by, update_date, del_flag)
+        VALUES(#{id}, #{name}, #{sourceDatasourceId}, #{sourceDatabase}, #{targetDatasourceId}, #{targetDatabase},
+               #{config}, #{notifyConfig}, #{description}, #{createBy}, #{createDate}, #{updateBy}, #{updateDate}, '0')
+    </insert>
+
+    <update id="update">
+        UPDATE sync_task
+        SET name = #{name}, source_datasource_id = #{sourceDatasourceId}, source_database = #{sourceDatabase},
+            target_datasource_id = #{targetDatasourceId}, target_database = #{targetDatabase},
+            config = #{config}, notify_config = #{notifyConfig}, description = #{description},
+            update_by = #{updateBy}, update_date = #{updateDate}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findAll" resultType="SyncTask">
+        SELECT * FROM sync_task WHERE del_flag = '0' ORDER BY create_date DESC
+    </select>
+
+    <select id="findById" resultType="SyncTask">
+        SELECT * FROM sync_task WHERE id = #{id} AND del_flag = '0'
+    </select>
+
+    <update id="delete">
+        UPDATE sync_task SET del_flag = '1', update_date = #{now} WHERE id = #{id}
+    </update>
+</mapper>

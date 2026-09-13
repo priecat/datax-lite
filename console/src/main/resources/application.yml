@@ -1,0 +1,55 @@
+server:
+  port: 8001
+
+spring:
+  application:
+    name: datax-console
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+  # SQLite 系统库（文件位于应用根目录 data 下）
+  datasource:
+    driver-class-name: org.sqlite.JDBC
+    url: jdbc:sqlite:${user.dir}/data/datax_console.db
+    hikari:
+      maximum-pool-size: 1
+      connection-init-sql: "PRAGMA busy_timeout = 5000"
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-sqlite.sql
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+  type-handlers-package: net.itzq.datax.config.typehandler
+  type-aliases-package: net.itzq.datax.entity
+  mapper-locations: classpath:mapper/*.xml
+
+logging:
+  file:
+    path: ${user.dir}/log
+  level:
+    com.alibaba.datax: info
+
+datax-console:
+  # 最大同时执行任务数
+  max-concurrent-jobs: 3
+  # 定时调度线程数
+  schedule-pool-size: 5
+  # 长跑/卡死告警阈值（分钟）：任务排队超时仍未开始、或开始后长时间无数据进展时输出 ERROR 日志
+  # 仅告警不自动停止（避免中断正在写数据的作业）；<=0 关闭
+  job-warn-minutes: 120
+  # 登录认证配置
+  auth:
+    # JWT 签名密钥（部署时务必修改；修改后所有已签发 token 立即失效）
+    secret: "datax-console@jwt#2024-secret-please-change-me"
+    # token 有效期（小时）
+    expire-hours: 24
+    # 用户表为空时自动初始化管理员账号
+    init-admin:
+      enabled: true
+      account: admin
+      password: admin123
+      name: 管理员

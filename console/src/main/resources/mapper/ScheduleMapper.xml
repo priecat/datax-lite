@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="net.itzq.datax.mapper.ScheduleMapper">
+
+    <insert id="insert">
+        INSERT INTO sys_schedule(id, name, t_group, expression, status, is_info, classname, task_id,
+                                 description, create_by, create_date, update_by, update_date, del_flag)
+        VALUES(#{id}, #{name}, #{tGroup}, #{expression}, #{status}, #{isInfo}, #{classname}, #{taskId},
+               #{description}, #{createBy}, #{createDate}, #{updateBy}, #{updateDate}, '0')
+    </insert>
+
+    <update id="update">
+        UPDATE sys_schedule
+        SET name = #{name}, t_group = #{tGroup}, expression = #{expression}, status = #{status},
+            is_info = #{isInfo}, classname = #{classname}, task_id = #{taskId}, description = #{description},
+            update_by = #{updateBy}, update_date = #{updateDate}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findAll" resultType="Schedule">
+        SELECT * FROM sys_schedule WHERE del_flag = '0' ORDER BY create_date DESC
+    </select>
+
+    <select id="findById" resultType="Schedule">
+        SELECT * FROM sys_schedule WHERE id = #{id} AND del_flag = '0'
+    </select>
+
+    <select id="countByTaskId" resultType="long">
+        SELECT COUNT(1) FROM sys_schedule WHERE task_id = #{taskId} AND del_flag = '0'
+    </select>
+
+    <update id="delete">
+        UPDATE sys_schedule SET del_flag = '1', update_date = #{now} WHERE id = #{id}
+    </update>
+</mapper>

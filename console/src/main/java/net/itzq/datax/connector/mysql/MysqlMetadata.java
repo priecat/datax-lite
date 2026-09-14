@@ -2,6 +2,7 @@ package net.itzq.datax.connector.mysql;
 
 import lombok.extern.slf4j.Slf4j;
 import net.itzq.datax.common.BizException;
+import net.itzq.datax.connector.Dialect;
 import net.itzq.datax.connector.Metadata;
 import net.itzq.datax.dto.ColumnMeta;
 import net.itzq.datax.dto.TableMeta;
@@ -157,6 +158,32 @@ public class MysqlMetadata implements Metadata {
             return dialect.showCreateTable(conn, db, table);
         } catch (SQLException e) {
             throw new BizException("读取建表语句失败: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public java.util.List<Dialect.TriggerDef> listTriggers(DataSource ds, String db, String table) {
+        try (Connection conn = open(ds, db)) {
+            return dialect.listTriggers(conn, db, table);
+        } catch (SQLException e) {
+            throw new BizException("读取触发器失败: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Long readAutoIncrement(DataSource ds, String db, String table) {
+        String sql = "SELECT AUTO_INCREMENT FROM information_schema.TABLES "
+                + "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+        try (Connection conn = open(ds, db);
+             java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, db);
+            ps.setString(2, table);
+            try (java.sql.ResultSet rs = ps.executeQuery()) {
+                // 表不存在 / 无自增列 -> null；读到的值恒 >= max(id)+1
+                return rs.next() && rs.getObject(1) != null ? rs.getLong(1) : null;
+            }
+        } catch (SQLException e) {
+            throw new BizException("读取自增计数器失败: " + e.getMessage(), e);
         }
     }
 

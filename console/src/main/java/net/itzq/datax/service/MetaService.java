@@ -2,6 +2,7 @@ package net.itzq.datax.service;
 
 import net.itzq.datax.connector.ConnectorRegistry;
 import net.itzq.datax.connector.DbConnector;
+import net.itzq.datax.connector.Dialect;
 import net.itzq.datax.dto.ColumnMeta;
 import net.itzq.datax.dto.TableMeta;
 import net.itzq.datax.entity.DataSource;
@@ -77,6 +78,16 @@ public class MetaService {
 
     public String showCreateTable(DataSource ds, String db, String table) {
         return registry.get(ds).metadata().showCreateTable(ds, db, table);
+    }
+
+    /** 列出表上的触发器（不支持触发器的方言返回空列表） */
+    public List<Dialect.TriggerDef> listTriggers(DataSource ds, String db, String table) {
+        return registry.get(ds).metadata().listTriggers(ds, db, table);
+    }
+
+    /** 读表的自增计数器当前值（下一个将分配的自增 id）；方言无自增语义或表无自增列时返回 null */
+    public Long readAutoIncrement(DataSource ds, String db, String table) {
+        return registry.get(ds).metadata().readAutoIncrement(ds, db, table);
     }
 
     public void executeDdl(DataSource ds, String db, String ddl) {

@@ -98,6 +98,12 @@ public class MysqlCapabilities implements Capabilities {
     }
 
     @Override
+    public boolean supportsTriggers() {
+        // information_schema.TRIGGERS + SHOW CREATE TRIGGER（5.7+）
+        return true;
+    }
+
+    @Override
     public List<String> writeModes() {
         return Collections.unmodifiableList(Arrays.asList("insert", "replace", "update"));
     }

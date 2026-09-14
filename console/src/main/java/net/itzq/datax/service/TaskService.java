@@ -177,21 +177,34 @@ public class TaskService {
             preview.getWarnings().add("生成 job.json 失败：" + e.getMessage());
         }
 
-        // 3. 任务开始时准备过程（与执行日志逐行一致：首行为任务开始，随后逐表准备日志）
+        // 3. 任务开始时准备过程：预览与执行共用 runPrepare 同一编排（preview=true 只产日志与计划，
+        //    不执行 DDL），日志行由同一段代码产生，与执行开始时的日志逐行一致
         preview.getPrepareLogs().add("开始执行任务: " + task.getName()
                 + " [" + task.getSourceDatabase() + " -> " + task.getTargetDatabase() + "]");
-        for (TableMapping tm : enabledTables) {
-            try {
-                preview.getTables().add(buildTablePlan(preview, sourceDs, targetDs, task, tm,
-                        Boolean.TRUE.equals(splitPkDefaultFlags.get(tm.getSourceTable()))));
-            } catch (Exception e) {
+        net.itzq.datax.dto.StructureOptions structureOptions = config.getOptions() == null
+                ? null : config.getOptions().getStructureOptions();
+        TablePrepareLogic.PrepareReport report = tablePrepareLogic.runPrepare(
+                sourceDs, task.getSourceDatabase(), targetDs, task.getTargetDatabase(),
+                config, structureOptions, true, null);
+        // 预览同样走 restoreForeignKeys/restoreTriggers/restoreAutoIncrement 产出延迟段（execute=false 只生成日志行），
+        // 与执行的第三阶段（DataX 成功后调同一方法）共用同一份标题与语句生成
+        tablePrepareLogic.restoreForeignKeys(report, false, targetDs, task.getTargetDatabase(), null);
+        tablePrepareLogic.restoreTriggers(report, false, targetDs, task.getTargetDatabase(), null);
+        tablePrepareLogic.restoreAutoIncrement(report, false, targetDs, task.getTargetDatabase(), null);
+        preview.getPrepareLogs().addAll(report.getLogLines());
+        for (TablePrepareLogic.PreparedTable pt : report.getTables()) {
+            TableMapping tm = pt.getTableMapping();
+            if (pt.getPlan() == null) {
+                // 预览模式下单表规划失败的占位（执行模式下这种情况会直接失败终止）
                 TaskPlanPreview.TablePlan plan = new TaskPlanPreview.TablePlan();
                 plan.setSourceTable(tm.getSourceTable());
                 plan.setTargetTable(tm.getTargetTable());
-                plan.getWarnings().add("读取元数据失败，预览不完整：" + e.getMessage());
-                preview.getPrepareLogs().add("表[" + tm.getSourceTable() + "]读取元数据失败，预览不完整: " + e.getMessage());
+                plan.getWarnings().add("读取元数据失败，预览不完整：" + pt.getErrorMessage());
                 preview.getTables().add(plan);
+                continue;
             }
+            preview.getTables().add(buildTablePlan(preview, sourceDs, targetDs, task, tm, pt,
+                    Boolean.TRUE.equals(splitPkDefaultFlags.get(tm.getSourceTable()))));
         }
 
         // 4. 任务完成通知
@@ -213,9 +226,10 @@ public class TaskService {
         return info;
     }
 
-    /** 单表执行计划（准备动作来自与执行共用的 TablePrepareLogic，准备日志行汇总到全局 preview.prepareLogs） */
+    /** 单表展示计划：准备动作与日志来自 runPrepare 的统一产出，此处只做展示层组装 */
     private TaskPlanPreview.TablePlan buildTablePlan(TaskPlanPreview preview, DataSource sourceDs, DataSource targetDs,
-                                                     SyncTask task, TableMapping tm, boolean splitPkDefault) {
+                                                     SyncTask task, TableMapping tm,
+                                                     TablePrepareLogic.PreparedTable prepared, boolean splitPkDefault) {
         String targetDb = task.getTargetDatabase();
         TaskPlanPreview.TablePlan plan = new TaskPlanPreview.TablePlan();
         plan.setSourceTable(tm.getSourceTable());
@@ -259,11 +273,8 @@ public class TaskService {
             }
         }
 
-        // 准备过程（与执行共用同一决策，日志行与执行开始时的日志逐行一致，含 DDL 全文）
-        TablePrepareLogic.PreparedTable prepared = tablePrepareLogic.prepare(
-                sourceDs, task.getSourceDatabase(), targetDs, targetDb, tm);
+        // 准备结果来自 runPrepare 的统一产出（日志已汇总到全局 prepareLogs，此处只取结构化信息）
         TablePrepareLogic.TablePreparePlan prepare = prepared.getPlan();
-        preview.getPrepareLogs().addAll(prepared.getLogLines());
         plan.setCreateDdl(prepare.getCreateDdl());
         plan.getWarnings().addAll(prepare.getWarnings());
         for (ColumnMapping c : prepare.getMissingColumns()) {

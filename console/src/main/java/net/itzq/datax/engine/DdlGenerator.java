@@ -2,6 +2,7 @@ package net.itzq.datax.engine;
 
 import net.itzq.datax.connector.ConnectorRegistry;
 import net.itzq.datax.connector.DbConnector;
+import net.itzq.datax.connector.Dialect;
 import net.itzq.datax.connector.DdlRequest;
 import net.itzq.datax.connector.ResolvedColumn;
 import net.itzq.datax.connector.TypeDecision;
@@ -46,14 +47,18 @@ public class DdlGenerator {
         this.registry = registry;
     }
 
-    /** 建表语句 + 类型裁决 WARN 汇总（供预览/执行日志展示） */
+    /** 建表语句 + 类型裁决 WARN 汇总 + 建表后需延迟执行的外键恢复语句（供预览/执行日志展示） */
     public static class BuildResult {
         private final List<String> statements;
         private final List<String> typeWarnings;
+        /** 外键恢复 ALTER 语句（identity 快路径且启用"包含外键"时非空；全部表建完后统一执行） */
+        private final List<String> postStatements;
 
-        public BuildResult(List<String> statements, List<String> typeWarnings) {
+        public BuildResult(List<String> statements, List<String> typeWarnings, List<String> postStatements) {
             this.statements = statements;
             this.typeWarnings = typeWarnings;
+            this.postStatements = postStatements == null
+                    ? java.util.Collections.<String>emptyList() : postStatements;
         }
 
         public List<String> getStatements() {
@@ -63,10 +68,14 @@ public class DdlGenerator {
         public List<String> getTypeWarnings() {
             return typeWarnings;
         }
+
+        public List<String> getPostStatements() {
+            return postStatements;
+        }
     }
 
     public String generate(DataSource sourceDs, String sourceDb, DataSource targetDs, String targetDb, TableMapping tm) {
-        BuildResult result = buildCreateTableStatements(sourceDs, sourceDb, targetDs, targetDb, tm);
+        BuildResult result = buildCreateTableStatements(sourceDs, sourceDb, targetDs, targetDb, tm, null);
         if (result.getStatements().isEmpty()) {
             throw new IllegalStateException("目标表[" + tm.getTargetTable() + "]未生成任何建表语句");
         }
@@ -76,9 +85,12 @@ public class DdlGenerator {
     /**
      * 生成建表语句列表（跨库时的正确入口：部分方言建表需要多条语句）。
      * 同时返回类型裁决产生的 WARN 文本（如跨库未配置映射规则的直传提示）。
+     *
+     * @param structureOptions 表结构复制选项；null 时按默认（全保留 + 外键剥离待恢复）处理
      */
     public BuildResult buildCreateTableStatements(DataSource sourceDs, String sourceDb,
-                                                  DataSource targetDs, String targetDb, TableMapping tm) {
+                                                  DataSource targetDs, String targetDb, TableMapping tm,
+                                                  net.itzq.datax.dto.StructureOptions structureOptions) {
         List<ColumnMapping> selected = new ArrayList<ColumnMapping>();
         for (ColumnMapping c : tm.getColumns()) {
             if (c.isSelected()) {
@@ -138,13 +150,19 @@ public class DdlGenerator {
         req.setSelected(resolved);
         req.setIdentity(identity);
 
-        // 身份拷贝快路径：仅当目标方言声明支持且裁决未改写任何类型时，才读取源库建表语句
+        // 身份拷贝快路径：仅当目标方言声明支持且裁决未改写任何类型时，才读取源库建表语句。
+        // 表体按结构复制选项剥离（外键抽出为延迟恢复语句，其余按开关剥离）。
+        List<String> postStatements = java.util.Collections.<String>emptyList();
         if (identity && target.capabilities().nativeShowCreate()) {
             String raw = metaService.showCreateTable(sourceDs, sourceDb, tm.getSourceTable());
-            req.setSourceCreateTable(source.dialect().extractTableBody(raw));
+            String body = source.dialect().extractTableBody(raw);
+            Dialect.IdentityBody processed = target.dialect().processIdentityBody(
+                    targetDb, tm.getTargetTable(), body, structureOptions);
+            req.setSourceCreateTable(processed.getBody());
+            postStatements = processed.getForeignKeyAlters();
         }
 
-        return new BuildResult(target.dialect().buildCreateTable(req), typeWarnings);
+        return new BuildResult(target.dialect().buildCreateTable(req), typeWarnings, postStatements);
     }
 
     private boolean allIdentity(List<ColumnMapping> selected) {

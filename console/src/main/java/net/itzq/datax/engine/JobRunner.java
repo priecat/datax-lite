@@ -58,6 +58,8 @@ public class JobRunner implements Runnable {
     private volatile long lastReadRecords = -1;
     /** 最终状态：收尾（落库/通知）期间进度接口也应返回终态，而不是停留在 RUNNING */
     private volatile String finalState;
+    /** 准备阶段产出（含延迟恢复的外键动作），数据同步成功后用于第三阶段恢复外键 */
+    private TablePrepareLogic.PrepareReport prepareReport;
 
     public JobRunner(long dataxJobId, String logId, SyncTask task, DataSource sourceDs, DataSource targetDs,
                      TaskConfig config, DataxJobBuilder jobBuilder, MetaService metaService,
@@ -195,6 +197,21 @@ public class JobRunner implements Runnable {
 
             logLine("DataX 作业开始运行");
             consoleContainer.start();
+            // 数据同步成功后统一恢复外键（第三阶段）。被手动停止时不做恢复：
+            // 表保持"有数据无外键"状态，下次执行的准备阶段会按同样逻辑先移除再恢复，天然可重入
+            if (StopFlagRegistry.isStopped(dataxJobId)) {
+                state = SyncTaskLog.STATE_STOPPED;
+                message = "任务在数据同步完成后、恢复外键前被手动停止";
+                logLine(message);
+                return;
+            }
+            // 恢复失败抛出异常 → run() 统一置为 FAILED（数据已同步，日志会写明）
+            tablePrepareLogic.restoreForeignKeys(prepareReport, true,
+                    targetDs, task.getTargetDatabase(), this::logLine);
+            tablePrepareLogic.restoreTriggers(prepareReport, true,
+                    targetDs, task.getTargetDatabase(), this::logLine);
+            tablePrepareLogic.restoreAutoIncrement(prepareReport, true,
+                    targetDs, task.getTargetDatabase(), this::logLine);
             state = SyncTaskLog.STATE_SUCCESS;
             logLine("任务执行成功");
         } catch (Throwable e) {
@@ -292,30 +309,18 @@ public class JobRunner implements Runnable {
     }
 
     /** 建表策略：勾选"重建表"则每次删除重建；否则自动建表（不存在时）+ 自动补齐目标表缺失字段。
-     *  日志行由 TablePrepareLogic.prepare 生成（与预览共用，保证预览与执行日志逐行一致），此处负责执行动作。 */
+     *  预览与执行共用 TablePrepareLogic.runPrepare 同一编排（此处 preview=false）：
+     *  日志行与第四步预览由同一段代码产生、逐行一致。本方法只保证"表存在且无外键"，
+     *  外键恢复等延迟动作由 run() 在 DataX 成功后调 restoreForeignKeys 统一执行（第三阶段），
+     *  任何准备失败直接抛出（不进入数据同步阶段）。 */
     private void prepareTables() {
-        List<TableMapping> tables = config.getTables();
-        if (tables == null) {
-            return;
-        }
-        for (TableMapping tm : tables) {
-            if (!tm.isEnabled()) {
-                continue;
-            }
-            TablePrepareLogic.PreparedTable prepared = tablePrepareLogic.prepare(
-                    sourceDs, task.getSourceDatabase(), targetDs, task.getTargetDatabase(), tm);
-            for (String line : prepared.getLogLines()) {
-                logLine(line);
-            }
-            for (TablePrepareLogic.PrepareAction action : prepared.getPlan().getActions()) {
-                // 单个动作可能含多条语句（如达梦的 ALTER ADD COLUMN + COMMENT ON COLUMN）
-                for (String ddl : action.getDdlList()) {
-                    if (ddl != null) {
-                        metaService.executeDdl(targetDs, task.getTargetDatabase(), ddl);
-                    }
-                }
-            }
-        }
+        net.itzq.datax.dto.StructureOptions structureOptions = config.getOptions() == null
+                ? new net.itzq.datax.dto.StructureOptions()
+                : net.itzq.datax.dto.StructureOptions.safe(config.getOptions().getStructureOptions());
+        // 日志通过回调实时输出（与预览同一行来源）；准备失败抛出异常由 run() 统一置为 FAILED
+        this.prepareReport = tablePrepareLogic.runPrepare(
+                sourceDs, task.getSourceDatabase(), targetDs, task.getTargetDatabase(),
+                config, structureOptions, false, this::logLine);
     }
 
     private SyncTaskLog persistLog(String state, String message, JobProgress progress, long endMillis, Path logFile) {

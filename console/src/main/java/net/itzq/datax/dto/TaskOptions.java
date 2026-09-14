@@ -20,4 +20,6 @@ public class TaskOptions {
     private long errorLimitRecord = 0;
     /** 允许的错误比例上限（errorLimitMode=percentage 时生效，0-1） */
     private double errorLimitPercentage = 0.05;
+    /** 表结构复制选项（建表 identity 快路径的剥离/恢复控制） */
+    private StructureOptions structureOptions = new StructureOptions();
 }

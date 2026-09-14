@@ -13,7 +13,7 @@
 
     <groupId>net.itzq</groupId>
     <artifactId>datax-lite</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>jar</packaging>
 
     <name>datax-lite</name>
@@ -29,7 +29,7 @@
         <datax.version>datax_v202309_1</datax.version>
         <mybatis-spring-boot.version>2.3.2</mybatis-spring-boot.version>
         <sqlite-jdbc.version>3.45.1.0</sqlite-jdbc.version>
-        <jjwt.version>0.9.1</jjwt.version>
+        <jjwt.version>0.13.0</jjwt.version>
     </properties>
 
     <repositories>
@@ -89,8 +89,20 @@
         <!-- JWT：登录令牌签发与校验（密钥配置于 application.yml 的 datax-console.auth.secret） -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt</artifactId>
+            <artifactId>jjwt-api</artifactId>
             <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Lombok -->

@@ -61,6 +61,14 @@ public interface Capabilities {
 
     boolean supportsCharset();
 
+    /**
+     * 是否支持触发器的读取与同步（{@code SHOW CREATE TRIGGER} 等）。
+     * 默认 false；MySQL 族为 true。false 时同步选项中的"包含触发器"自动跳过。
+     */
+    default boolean supportsTriggers() {
+        return false;
+    }
+
     /** 支持的写入模式，如 ["insert","replace","update"]；前端据此渲染选项 */
     List<String> writeModes();
 

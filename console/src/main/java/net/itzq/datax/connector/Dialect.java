@@ -67,6 +67,109 @@ public interface Dialect {
      */
     String extractTableBody(String rawStatement);
 
+    /**
+     * identity 快路径的表体处理：按结构复制选项剥离风险定义，并抽出需延迟恢复的外键语句。
+     *
+     * <p>两阶段外键策略：建表语句中先剥掉 FOREIGN KEY（父表可能不在任务范围内或靠后才建），
+     * 全部表建完后由执行器统一执行 {@link IdentityBody#getForeignKeyAlters()} 恢复。
+     * 默认实现原样返回（无 SHOW CREATE TABLE 拷贝路径的方言，如 PG，不会走到这里）。
+     */
+    default IdentityBody processIdentityBody(String targetDb, String targetTable, String body,
+                                             net.itzq.datax.dto.StructureOptions options) {
+        return new IdentityBody(body, java.util.Collections.<String>emptyList());
+    }
+
+    /** identity 快路径表体处理结果：剥离后的表体 + 建表完成后需执行的外键恢复语句 */
+    class IdentityBody {
+        private final String body;
+        private final List<String> foreignKeyAlters;
+
+        public IdentityBody(String body, List<String> foreignKeyAlters) {
+            this.body = body;
+            this.foreignKeyAlters = foreignKeyAlters == null
+                    ? java.util.Collections.<String>emptyList() : foreignKeyAlters;
+        }
+
+        public String getBody() {
+            return body;
+        }
+
+        public List<String> getForeignKeyAlters() {
+            return foreignKeyAlters;
+        }
+    }
+
+    /**
+     * 解析建表语句表体中的外键定义（约束名 -> 完整 {@code CONSTRAINT ... FOREIGN KEY ...} 定义，不含行尾逗号）。
+     *
+     * <p>用于"目标表已存在且带外键"场景：同步前先移除这些外键（避免 DataX 乱序写入触发 1452），
+     * 数据同步完成后统一恢复。默认返回空表（无 SHOW CREATE TABLE 拷贝路径的方言不处理外键）。
+     */
+    default java.util.LinkedHashMap<String, String> parseForeignKeyDefs(String body) {
+        return new java.util.LinkedHashMap<>();
+    }
+
+    /** 生成移除外键语句：{@code ALTER TABLE ... DROP FOREIGN KEY `约束名`} */
+    default String buildDropForeignKey(String db, String table, String constraintName) {
+        return "ALTER TABLE " + qualify(db, table) + " DROP FOREIGN KEY " + quote(constraintName);
+    }
+
+    /** 生成恢复外键语句：{@code ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ...} */
+    default String buildAddForeignKey(String db, String table, String constraintDef) {
+        return "ALTER TABLE " + qualify(db, table) + " ADD " + constraintDef;
+    }
+
+    /**
+     * 列出表上的触发器（name -> 完整 CREATE 语句）。仅 {@code Capabilities#supportsTriggers()} 为 true 的方言实现。
+     *
+     * <p>返回的 CREATE 语句已剥掉 {@code DEFINER=...}（执行账号成为 definer，避免跨环境迁移时
+     * definer 不存在导致恢复失败）。默认返回空列表。
+     */
+    default List<TriggerDef> listTriggers(Connection conn, String db, String table) {
+        return java.util.Collections.emptyList();
+    }
+
+    /** 生成移除触发器语句：{@code DROP TRIGGER IF EXISTS `db`.`name`} */
+    default String buildDropTrigger(String db, String triggerName) {
+        return "DROP TRIGGER IF EXISTS " + qualify(db, triggerName);
+    }
+
+    /**
+     * 把触发器定义重定向到目标表：将定义头部的 {@code <timing> <event> ON `表`} 改写为
+     * {@code ON `目标库`.`目标表`}（正文中的 ON/JOIN 不受影响，仅按触发器语法锚点匹配首处）。
+     */
+    default String retargetTrigger(String createSql, String targetDb, String targetTable) {
+        return createSql;
+    }
+
+    /**
+     * 生成自增计数器对齐语句（第三阶段）：{@code ALTER TABLE `db`.`t` AUTO_INCREMENT = n}。
+     * 默认 null（方言无自增语义，调用方跳过）。MySQL 的 ALTER 只会向上调整计数器，
+     * 写入显式 id 已抬升超过 n 时保持原值，天然幂等安全。
+     */
+    default String buildSetAutoIncrement(String targetDb, String targetTable, long value) {
+        return null;
+    }
+
+    /** 触发器定义：触发器名 + 已剥 DEFINER 的完整 {@code CREATE TRIGGER} 语句 */
+    class TriggerDef {
+        private final String name;
+        private final String createSql;
+
+        public TriggerDef(String name, String createSql) {
+            this.name = name;
+            this.createSql = createSql;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getCreateSql() {
+            return createSql;
+        }
+    }
+
     // ── 元数据 SQL 模板（由 Metadata 层绑定参数执行） ──
 
     String sqlListDatabases();

@@ -176,6 +176,27 @@
             </el-tooltip>
           </div>
         </el-form-item>
+        <el-divider content-position="left">表结构复制选项</el-divider>
+        <el-form-item label="复制内容">
+          <div class="struct-opts">
+            <el-checkbox v-for="item in structureItems" :key="item.key"
+                         v-model="options.structureOptions[item.key]">
+              {{ item.label }}
+              <el-tooltip placement="top" effect="light">
+                <template #content>
+                  <div class="write-mode-help"><p>{{ item.tip }}</p></div>
+                </template>
+                <el-icon class="help-icon"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </el-checkbox>
+          </div>
+        </el-form-item>
+        <el-form-item label=" ">
+          <div class="struct-note">
+            对表结构有要求（外键、触发器、二级索引、引擎等）建议提前手动建立目标表，本工具仅用做数据拷贝。
+            注意：目标表已存在且残留外键/触发器、而对应选项未勾选时，准备阶段会直接报错退出（写入端触发器会改变数据语义，不建议启用）
+          </div>
+        </el-form-item>
       </el-form>
 
       <!-- 任务完成通知 -->
@@ -283,6 +304,7 @@
             <el-descriptions-item label="写入模式">{{ options.writeMode }}</el-descriptions-item>
             <el-descriptions-item label="批次大小 / 通道数">{{ options.batchSize }} / {{ options.channel }}</el-descriptions-item>
             <el-descriptions-item label="错误限制">{{ errorLimitText }}</el-descriptions-item>
+            <el-descriptions-item label="表结构复制">{{ structOptionsText }}</el-descriptions-item>
           </el-descriptions>
 
           <div class="plan-tables-head">
@@ -456,7 +478,29 @@ const form = reactive({
 })
 const options = reactive({
   writeMode: 'insert', batchSize: 1024, channel: 3,
-  errorLimitMode: 'record', errorLimitRecord: 0, errorLimitPercentage: 0.05
+  errorLimitMode: 'record', errorLimitRecord: 0, errorLimitPercentage: 0.05,
+  structureOptions: { index: true, foreignKey: true, check: true, engine: true, charset: true, autoIncrement: true, dropTrigger: true, recreateTrigger: false }
+})
+
+// 表结构复制选项的可编辑清单（含提示文案），checkbox 直接绑定 options.structureOptions。
+// 默认定位是"仅数据拷贝"：外键/触发器等会改变写入语义的对象默认不勾选
+const structureItems = [
+  { key: 'index', label: '包含索引', tip: '普通/唯一/全文/空间索引。主键始终保留，不受此项控制。仅在"整表同名拷贝"建表时生效，字段改名/裁剪时建表不含二级索引。' },
+  { key: 'check', label: '包含检查约束', tip: 'MySQL 8.0+ 的 CONSTRAINT ... CHECK 定义。' },
+  { key: 'engine', label: '包含引擎', tip: '建表语句尾部 ENGINE=xxx。跨库（如 PostgreSQL）无对应语义，不生效。' },
+  { key: 'charset', label: '包含字符集', tip: '建表语句尾部 DEFAULT CHARSET=xxx 与 COLLATE=xxx。' },
+  { key: 'autoIncrement', label: '对齐自增计数器', tip: '数据同步完成后执行 ALTER TABLE ... AUTO_INCREMENT=n，把目标表自增计数器对齐为源表的值（覆盖 truncate 重置、源表删过尾部数据等场景）。MySQL 的 ALTER 只会向上调整，幂等安全；源表无自增列时不执行。' },
+  { key: 'foreignKey', label: '包含外键约束', tip: '外键会在写入期校验、且 DataX 多线程写入顺序不定。勾选后走三阶段：新建表剥离外键、目标表已存在的先移除，数据同步完成后统一执行 ALTER 恢复；父表不在任务范围且目标库不存在时准备阶段直接失败，恢复失败时任务标记失败（数据已同步）。' },
+  { key: 'dropTrigger', label: '移除触发器', tip:
+            '默认启用：DataX 写入期间目标表触发器会逐行触发、改变数据语义，准备阶段先移除目标表触发器。未勾选时不做任何移除，但目标表存在触发器时准备阶段直接报错退出。' },
+  { key: 'recreateTrigger', label: '重建触发器', tip:
+            '默认禁用：数据同步完成后按源库定义在目标表重建触发器（目标独有触发器原样恢复）。仅勾选"移除触发器"时目标触发器同步后保持移除状态。注意：触发器引用的存储过程/函数若在目标库不存在，恢复阶段会失败。' }
+]
+
+const structOptionsText = computed(() => {
+  const o = options.structureOptions
+  const on = structureItems.filter(i => o[i.key]).map(i => i.label.replace('包含', ''))
+  return on.length ? on.join('、') : '仅列与主键'
 })
 
 // ---------- 任务完成通知 ----------
@@ -885,6 +929,11 @@ async function save() {
 .write-mode-help { max-width: 420px; line-height: 1.8; }
 .write-mode-help p { margin: 0 0 6px; }
 .write-mode-help p:last-child { margin-bottom: 0; }
+
+/* 表结构复制选项：复选框横向流式排列 + 说明文字 */
+.struct-opts { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.struct-opts .el-checkbox { margin-right: 0; }
+.struct-note { font-size: 12px; color: #909399; line-height: 1.7; }
 .step-actions { margin-top: 18px; text-align: center; }
 .table-tools { margin-bottom: 10px; }
 /* 第 2 步：卡片占满视口剩余高度，表格自身滚动（固定表头），按钮不被滚出视野 */

@@ -1,5 +1,6 @@
 package net.itzq.datax;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -9,6 +10,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 注意：必须在 DataX 任何类加载之前设置 datax.home 系统属性，
  * DataX 的 CoreConstant 会依据该属性定位 {datax.home}/conf/core.json 与 {datax.home}/plugin 目录。
  */
+@Slf4j
 @SpringBootApplication
 public class DataxLiteApplication {
 
@@ -25,6 +27,7 @@ public class DataxLiteApplication {
         }
         ensureCoreJson(home);
         SpringApplication.run(DataxLiteApplication.class, args);
+        log.info("已启动");
     }
 
     /**

@@ -38,6 +38,22 @@ public interface Metadata {
     /** 源表建表语句原文；找不到抛 BizException */
     String showCreateTable(DataSource ds, String db, String table);
 
+    /**
+     * 列出表上的触发器。默认空列表（不支持触发器的方言），
+     * MySQL 实现开连接后委派 {@code Dialect#listTriggers}。
+     */
+    default List<Dialect.TriggerDef> listTriggers(DataSource ds, String db, String table) {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * 读表的自增计数器当前值（下一个将分配的自增 id）。
+     * 默认 null（方言无自增语义或读取不适用）；表无自增列时 MySQL 实现也返回 null。
+     */
+    default Long readAutoIncrement(DataSource ds, String db, String table) {
+        return null;
+    }
+
     /** 在目标库执行一条 DDL */
     void executeDdl(DataSource ds, String db, String ddl);
 }

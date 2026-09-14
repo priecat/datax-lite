@@ -25,7 +25,7 @@
         </el-form-item>
 
         <el-form-item>
-          <div class="agree-row">
+          <div class="agree-row" v-if="loginDialog">
             <el-checkbox :model-value="agreed" size="small" @click.prevent="noticeVisible = true">
               我已阅读并同意
               <el-link type="primary" :underline="false" @click.stop="noticeVisible = true">《使用声明与风险提示》</el-link>
@@ -73,6 +73,7 @@ const agreed = ref(false)
 // 强制阅读：弹窗内容溢出出现滚动条时，必须滚动到底部才允许点「同意」
 const noticeBodyRef = ref(null)
 const noticeScrolled = ref(false)
+const loginDialog = import.meta.env.VITE_LOGIN_DIALOG === 'true'
 
 const checkNoticeScrolled = () => {
   const el = noticeBodyRef.value
@@ -119,9 +120,11 @@ const rules = {
 const handleLogin = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
-  if (!agreed.value) {
-    ElMessage.warning('请先阅读并同意《使用声明与风险提示》')
-    return
+  if (loginDialog){
+    if (!agreed.value) {
+      ElMessage.warning('请先阅读并同意《使用声明与风险提示》')
+      return
+    }
   }
   await doLogin()
 }
